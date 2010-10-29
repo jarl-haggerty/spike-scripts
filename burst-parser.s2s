@@ -1,0 +1,159 @@
+var output%, Input%, InputChannel%, WorkChannel%, Regions$[50], RegionCount%, swap$[50], dataswap%, original%;
+
+View(App(3)).WindowVisible(0);
+View(LogHandle()).Window(70,0,100,100);
+View(LogHandle()).WindowVisible(1);
+
+Input% := -1;
+SetupCSV();
+ToolbarClear();
+ToolbarSet(0, "Idle", Idle%);
+ToolbarSet(1, "&Quit", Quit%);
+ToolbarSet(2, "&Open", Open%);
+ToolbarSet(3, "&Parse Bursts", Parse%);
+ToolbarSet(4, "&Add Region", AddRegion%);
+ToolbarSet(5, "&Remove Region", RemoveRegion%);
+ToolbarSet(6, "&Save", Save%);
+Toolbar("Burst Parser", 152);
+
+View(App(3)).WindowVisible(1);
+
+Func SetupCSV()
+	ReadSetup(",\t", " ", "\"", "\"", ",");
+end;
+
+Func Idle%()
+	return 1;
+end;
+
+Func Quit%()
+	if input% > 0 then
+		View(input%);
+		ChanHide(WorkChannel%);
+		FileClose();
+	endif;
+	return 0;
+end;
+
+Func Parse%()
+	var BottomCursor%;
+	if View(Input%).Cursor(3 + 2*i%) < View(Input%).Cursor(3 + 2*i% + 1) then
+		BottomCursor% := 1;
+	else
+		BottomCursor% := 2;
+	endif;
+
+
+	return 1;
+end;
+
+Func Save%()
+	View(DataSwap%);
+	var InputName$, i%;
+	InputName$ := FileName$(3);
+	FileClose(DataSwap%);
+
+	Output% := FileOpen(Print$("%s.csv", InputName$), 8, 1);
+	DataSwap% := FileOpen(Print$("%s.swap", InputName$), 8, 0);
+
+	View(Output%).Print("Label, Start, Stop\n");
+	for i% := 0 to RegionCount%-1 do
+		View(Output%).Print("%s, %f, %f\n", Regions$[i%], Min(View(Input%).Cursor(3 + 2*i%), View(Input%).Cursor(3 + 2*i% + 1)), Max(View(Input%).Cursor(3 + 2*i%), View(Input%).Cursor(3 + 2*i% + 1)))
+	next;
+
+	View(Output%).Print("Time, Area, Amplitude, Duration, Fractional Peak, Frequency\n");
+	while View(DataSwap%).Read(swap$[0:10]) = 6 do
+		View(Output%).Print("%s, %s, %s, %s, %s, %s\n", swap$[0], swap$[1], swap$[2], swap$[3], swap$[4], swap$[5]);
+	wend;
+
+	View(Output%);
+	FileClose(Output%);
+
+	return 1;
+end;
+
+Func AddRegion%()
+	Regions$[RegionCount%] := Input$("Input the name of the new region:", "");
+	View(Input%);
+	CursorNew(XLow() + (XHigh() - XLow())/4, 3 + 2*RegionCount%);
+	CursorLabel(4, 3 + 2*RegionCount%, Regions$[RegionCount%]);
+	CursorNew(XLow() + 3*(XHigh() - XLow())/4, 3 + 2*RegionCount% + 1);
+	CursorLabel(4, 3 + 2*RegionCount% + 1, Regions$[RegionCount%]);
+	RegionCount% := RegionCount% + 1;
+	return 1;
+end;
+
+Func RemoveRegion%()
+	if RegionCount% > 0 then
+		var index%, result%, v%;
+		DlgCreate("Remove Region");
+		DlgList(0, "Select a region to remove:", Regions$[]);
+		result% := DlgShow(index%);
+		
+		if result% = 1 then
+			View(input%);
+			for v% := index% to RegionCount%-2 do
+				Regions$[v%] := Regions$[v%+1];
+				Cursor(3 + 2*v%, Cursor(3 + 2*(v%+1)));
+				CursorLabel(4, 3 + 2*v%, Regions$[v%]);
+				Cursor(3 + 2*v% + 1, Cursor(3 + 2*(v%+1) + 1));
+				CursorLabel(4, 3 + 2*v% + 1, Regions$[v%]);
+			next;
+			v% := v% + 1;
+			CursorDelete(3 + 2*v%);
+			CursorDelete(3 + 2*(v%+1));
+			RegionCount% := RegionCount% - 1;
+		endif;
+	else
+		Message("There are no regions to remove");
+	endif;
+	return 1;
+end;
+
+Func Open%()
+	input% := FileOpen("*.smr", 0);
+	CursorDelete(-1);
+	var outputname$;
+	outputname$ := Print$("%s.csv", FileName$(3));
+	output% := FileOpen(outputname$, 8, 0);
+	outputname$ := Print$("%s.swap", FileName$(3));
+	dataswap% := FileOpen(outputname$, 8, 1);
+	RegionCount% := 0;
+	if output% > 0 then
+		View(output%);
+		Read();
+		while View(output%).Read(swap$[0:10]) = 3 do
+			Regions$[RegionCount%] := swap$[0];
+			View(input%).CursorNew(Val(swap$[1]), 3 + 2*RegionCount%);
+			View(input%).CursorLabel(4, 3 + 2*RegionCount%, Regions$[RegionCount%]);
+			View(input%).CursorNew(Val(swap$[2]), 3 + 2*RegionCount% + 1);
+			View(input%).CursorLabel(4, 3 + 2*RegionCount% + 1, Regions$[RegionCount%]);
+			RegionCount% := RegionCount% + 1;
+		wend;
+		while View(output%).Read(swap$[0:10]) = 6 do
+			View(dataswap%).Print("%s, %s, %s, %s, %s, %s\n", swap$[0], swap$[1], swap$[2], swap$[3], swap$[4], swap$[5]);
+		wend;
+		View(output%);
+		FileClose(output%);
+	endif;
+
+	View(input%);
+	Window(0, 0, 70, 100);
+	CursorNew(XLow() + (XHigh() - XLow())/4, 1);
+	CursorLabel(4, 1, "Parse");
+	CursorNew(XLow() + 3*(XHigh() - XLow())/4, 2);
+	CursorLabel(4, 2, "Parse");
+	WindowVisible(1);
+
+	InputChannel% := Input("Which channel are you working on?", 1);
+
+	ChanHide(-1);
+	ChanShow(InputChannel%);
+	
+	WorkChannel% := ChanDuplicate(InputChannel%);
+	ChanProcessAdd(WorkChannel%, 8, .05);
+	ChanProcessAdd(WorkChannel%, 2, 5);
+	ChanShow(WorkChannel%);
+	Optimise();
+	return 1;
+end;
