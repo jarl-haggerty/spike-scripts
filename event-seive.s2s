@@ -1,0 +1,23 @@
+Var Input%, XY%;
+
+Input% := FileOpen("*.smr", 0);
+XRange(0, 900);
+Window(0, 0, 100, 100);
+WindowVisible(1);
+
+ChanProcessAdd(2, 2, Maxtime());
+
+View(LogHandle()).Print(Pow(View(Input%).ChanMeasure(2, 11, 0, 900), 2));
+View(LogHandle()).Print("\n");
+
+var Partitions%, CurrentPartitions%, MinPartition, i%, j%, SNR, Swap%;
+SNR := 10;
+MinPartition := 0.5;
+Partitions% := 900/MinPartition;
+
+for i% := 1 to Partitions do
+	Swap% := FileOpen("swap", 9, 1);
+	for j% := 0 to i% do
+		
+
+	Pow(View(Input%).ChanMeasure(2, 11, 0, 900), 2);

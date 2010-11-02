@@ -1,10 +1,10 @@
-var output%, Input%, InputChannel%, WorkChannel%, Regions$[50], RegionCount%, swap$[50], dataswap%, original%, Threshold%, ReservedCursors%;
+var output%, Input%, InputChannel%, WorkChannel%, Regions$[50], RegionStarts[50], RegionStops[50], RegionCount%, swap$[50], dataswap%, original%, Threshold%, ReservedCursors%;
 
 View(App(3)).WindowVisible(0);
 View(LogHandle()).Window(70,0,100,100);
 View(LogHandle()).WindowVisible(1);
 
-ReservedCursors% := 2;
+ReservedCursors% := 3;
 Input% := -1;
 SetupCSV();
 ToolbarClear();
@@ -30,7 +30,7 @@ end;
 Func Quit%()
 	if input% > 0 then
 		View(input%);
-		ChanHide(WorkChannel%);
+		ChanDelete(WorkChannel%);
 		FileClose();
 	endif;
 	return 0;
@@ -38,52 +38,64 @@ end;
 
 Func Parse%()
 	View(Input%);
+	DataSwap% := FileOpen(Print$("%s.swap", FileName$(3)), 8, 2);
+	View(Input%);
 
-	var NewPosition, Maxtime$, Button%, PeakPosition, LastBurst;
-	Maxtime$ := Print$("%f", Maxtime());
+	var NewPosition, Maxtime$, Button%, PeakPosition, LastBurst, ViewWidth;
+	Maxtime$ := Print$("%f", View(Input%).Maxtime());
+	View(Input%).CursorVisible(2, 1);
 	
 	LastBurst := -1;
 	Button% := 3;
 	while Button% > 2 do
-		CursorActive(1, 7, WorkChannel%, "Cursor(1)", Maxtime$, "Cursor(1)", HCursor(Threshold%));
-		NewPosition := CursorSearch(1, 1);
+		View(Input%).CursorActive(2, 0);
+		View(Input%).CursorActive(1, 7, WorkChannel%, "Cursor(1)", Maxtime$, "Cursor(1)", View(Input%).HCursor(Threshold%));
+		NewPosition := View(Input%).CursorSearch(1);
 		if NewPosition > -1 then
-			CursorNew(NewPosition, 2);
-			CursorActive(2, 8, WorkChannel%, "Cursor(2)", Maxtime$, "Cursor(2)", 0);
-			CursorSearch(2, 2);
-			CursorActive(1, 4, WorkChannel%, "Cursor(1)", "Cursor(2)", "Cursor(1)");
-			PeakPosition := CursorSearch(1, 1);
-			CursorActive(1, 8, WorkChannel%, "Cursor(1)", "0", "Cursor(1)", 0);
-			CursorSearch(1, 1);
-			Button% := Interact("Record Burst?", 152, "Stop", "Record and Stop", "Record and continue", "Don't record and continue");
+			View(Input%).Cursor(2, NewPosition);
+			View(Input%).CursorActive(1, 0);
+			View(Input%).CursorActive(2, 8, WorkChannel%, "Cursor(2)", Maxtime$, "Cursor(2)", 0.0);
+			View(Input%).CursorSearch(1);
+			View(Input%).CursorActive(2, 0);
+			View(Input%).CursorActive(1, 4, WorkChannel%, "Cursor(1)", "Cursor(2)", "Cursor(1)");
+			PeakPosition := View(Input%).CursorSearch(1);
+			View(Input%).CursorActive(2, 0);
+			View(Input%).CursorActive(1, 8, WorkChannel%, "Cursor(1)", "0", "Cursor(1)", 0.0);
+			View(Input%).CursorSearch(1, 1);
+			ViewWidth := View(Input%).XHigh() - View(Input%).XLow();
+			View(Input%).XRange(PeakPosition - ViewWidth/8, PeakPosition - 7*ViewWidth/8);
+			Button% := Interact("Record Burst?", 152, 0, "Stop", "Record and Stop", "Record and continue", "Don't record and continue");
 			if Button% = 2 or Button% = 3 then
 				if LastBurst >= 0 then
-					View(DataSwap%).Print("%f, %f, %f, %f, %f, %f\n", Cursor(1), ChanMeasure(WorkChannel%, 1, Cursor(1), Cursor(2)), 
-																									 ChanMeasure(WorkChannel%, 10, Cursor(1), Cursor(2)),
-																									 Cursor(2)-Cursor(1),
-																									 (PeakPosition-Cursor(1))/Cursor(2)-Cursor(1),
-																									 1/(Cursor(1)-LastBurst));
+					View(DataSwap%).Print("%f, %f, %f, %f, %f, %f\n", View(Input%).Cursor(1), View(Input%).ChanMeasure(WorkChannel%, 1, View(Input%).Cursor(1), View(Input%).Cursor(2)), 
+																									              View(Input%).ChanMeasure(WorkChannel%, 10, View(Input%).Cursor(1), View(Input%).Cursor(2)),
+																									              View(Input%).Cursor(2)-View(Input%).Cursor(1),
+																									              (PeakPosition-View(Input%).Cursor(1))/(View(Input%).Cursor(2)-View(Input%).Cursor(1)),
+																									              1/(View(Input%).Cursor(1)-LastBurst));
 				else
-					View(DataSwap%).Print("%f, %f, %f, %f, %f, -1\n", Cursor(1), ChanMeasure(WorkChannel%, 1, Cursor(1), Cursor(2)), 
-																									 ChanMeasure(WorkChannel%, 10, Cursor(1), Cursor(2)),
-																									 Cursor(2)-Cursor(1),
-																									 (PeakPosition-Cursor(1))/Cursor(2)-Cursor(1));
+					View(DataSwap%).Print("%f, %f, %f, %f, %f, -1\n", View(Input%).Cursor(1), View(Input%).ChanMeasure(WorkChannel%, 1, View(Input%).Cursor(1), View(Input%).Cursor(2)), 
+																									              View(Input%).ChanMeasure(WorkChannel%, 10, View(Input%).Cursor(1), View(Input%).Cursor(2)),
+																									              View(Input%).Cursor(2)-View(Input%).Cursor(1),
+																									              (PeakPosition-View(Input%).Cursor(1))/(View(Input%).Cursor(2)-View(Input%).Cursor(1)));
 				endif;
-				LastBurst := Cursor(1);
+				LastBurst := View(Input%).Cursor(1);
 			endif;
+			View(Input%).Cursor(1, View(Input%).Cursor(2));
 		else
 			Message("No burst found");
 			return 1;
-		endif
-	endif;
+		endif;
+	wend;
+	View(Input%).CursorVisible(2, 0);
+	View(DataSwap%);
+	FileClose(DataSwap%);
 	return 1;
 end;
 
 Func Save%()
-	View(DataSwap%);
+	View(Input%);
 	var InputName$, i%;
 	InputName$ := FileName$(3);
-	FileClose(DataSwap%);
 
 	Output% := FileOpen(Print$("%s.csv", InputName$), 8, 1);
 	DataSwap% := FileOpen(Print$("%s.swap", InputName$), 8, 0);
@@ -101,6 +113,8 @@ Func Save%()
 
 	View(Output%);
 	FileClose(Output%);
+	View(DataSwap%);
+	FileClose(DataSwap%);
 
 	return 1;
 end;
@@ -109,8 +123,10 @@ Func AddRegion%()
 	Regions$[RegionCount%] := Input$("Input the name of the new region:", "");
 	View(Input%);
 	CursorNew(XLow() + (XHigh() - XLow())/4, ReservedCursors% + 2*RegionCount%);
+	CursorActive(ReservedCursors% + 2*RegionCount%, 0);
 	CursorLabel(4, ReservedCursors% + 2*RegionCount%, Regions$[RegionCount%]);
 	CursorNew(XLow() + 3*(XHigh() - XLow())/4, ReservedCursors% + 2*RegionCount% + 1);
+	CursorActive(ReservedCursors% + 2*RegionCount% + 1, 0);
 	CursorLabel(4, ReservedCursors% + 2*RegionCount% + 1, Regions$[RegionCount%]);
 	RegionCount% := RegionCount% + 1;
 	return 1;
@@ -153,13 +169,14 @@ Func Open%()
 	dataswap% := FileOpen(outputname$, 8, 1);
 	RegionCount% := 0;
 	if output% > 0 then
-		View(output%);
-		Read();
+		View(output%).Read();
 		while View(output%).Read(swap$[0:10]) = 3 do
 			Regions$[RegionCount%] := swap$[0];
 			View(input%).CursorNew(Val(swap$[1]), ReservedCursors% + 2*RegionCount%);
+			View(input%).CursorActive(ReservedCursors% + 2*RegionCount%, 0);
 			View(input%).CursorLabel(4, ReservedCursors% + 2*RegionCount%, Regions$[RegionCount%]);
 			View(input%).CursorNew(Val(swap$[2]), ReservedCursors% + 2*RegionCount% + 1);
+			View(input%).CursorActive(ReservedCursors% + 2*RegionCount% + 1, 0);
 			View(input%).CursorLabel(4, ReservedCursors% + 2*RegionCount% + 1, Regions$[RegionCount%]);
 			RegionCount% := RegionCount% + 1;
 		wend;
@@ -169,13 +186,16 @@ Func Open%()
 		View(output%);
 		FileClose(output%);
 	endif;
+	View(DataSwap%);
+	FileClose(DataSwap%);
 
 	View(input%);
 	Window(0, 0, 70, 100);
 	CursorNew(XLow() + (XHigh() - XLow())/4, 1);
-	CursorLabel(4, 1, "Parse");
-	CursorNew(XLow() + 3*(XHigh() - XLow())/4, 2);
-	CursorLabel(4, 2, "Parse");
+	CursorLabel(4, 1, "Start");
+	CursorNew(0, 2);
+	CursorLabel(4, 2, "Stop");
+	CursorVisible(2, 0);
 	WindowVisible(1);
 
 	InputChannel% := Input("Which channel are you working on?", 1);
